@@ -1,0 +1,7 @@
+{
+  "recommendations": [
+    "TeamsDevApp.vscode-adaptive-cards",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+  ]
+}

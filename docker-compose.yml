@@ -1,0 +1,31 @@
+version: '3.8'  # Specify the Docker Compose file format version
+services:
+  kustobuddy:
+    build:
+      context: .  # Build the Node.js app using the Dockerfile in the current directory
+    ports:
+      - "3978:3978"  # Map port 3000 on the host to port 3978 on the container
+    depends_on:
+      - mongodb               # Ensure MongoDB starts before the Node.js app
+    env_file:
+      - .env
+    volumes:
+      - .:/usr/src/kustobuddy # Mount the current directory into `/usr/src/kustobuddy`
+      - /usr/src/kustobuddy/node_modules # Mount node_modules to fix missing dependencies
+    restart: always           # Restart the Node.js container automatically if it stops
+
+  mongodb:
+    image: mongo:latest      # Use the official MongoDB image
+    container_name: mongodb  # Assign a name to the MongoDB container
+    ports:
+      - "27017:27017"        # Map port 27017 on the host to port 27017 on the container
+    environment:
+      MONGO_INITDB_ROOT_USERNAME:  # Set root username, this should be same as the one in .env
+      MONGO_INITDB_ROOT_PASSWORD:  # Set root password, this should be same as the one in .env
+      MONGO_INITDB_DATABASE: kustobuddy       # The default database to initialize
+    volumes:
+      - mongodb_data:/data/db  # Persist MongoDB data using named volume
+    restart: always            # Restart the MongoDB container automatically if it stops
+
+volumes:
+  mongodb_data:
