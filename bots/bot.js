@@ -1,6 +1,6 @@
 // @ts-check
 const { ActivityHandler, ActivityTypes, CardFactory, MessageFactory, TurnContext } = require('botbuilder');
-const { updateConversationReferenceInDb } = require('../utils/database');
+const { updateConversationReferenceInDb, getMessageByAadId, updateMessageInDb } = require('../utils/database');
 const { OpenAIClient } = require('../utils/openaiClient');
 const { StreamType, ChannelData } = require('../models/streaming');
 
@@ -11,7 +11,7 @@ const WELCOME_TEXT = 'Welcome to this Teams bot!';
 class MyTeamsBot extends ActivityHandler {
     constructor() {
         super();
-
+        this._maxTurns = Number(process.env.MAX_TURNS) || 10;
         this.onMessage(async (context, next) => {
             // send bot typing indicator before replying message
             await context.sendActivities([
@@ -83,7 +83,9 @@ class MyTeamsBot extends ActivityHandler {
                     model: process.env.OPENAI_MODEL,
                     azureBaseUrl: process.env.OPENAI_AZURE_BASE_URL,
                 });
-
+                const message = { role: 'user', content: removedMentionText };
+                const { messages } = await getMessageByAadId(context.activity?.from?.aadObjectId || '');
+                let newMessages = [...messages, message];
                 // Check if streaming is enabled in environment variables
                 const streamingEnabled = process.env.ENABLE_STREAMING === 'true';
 
@@ -108,9 +110,8 @@ class MyTeamsBot extends ActivityHandler {
                             'Getting the information...',
                             channelData
                         );
-
                         // Make the OpenAI API request and enable streaming
-                        const events = await openaiClient.generateResponse(removedMentionText, {
+                        const events = await openaiClient.generateResponseWithContext(newMessages, {
                             stream: true,
                         });
 
@@ -131,6 +132,14 @@ class MyTeamsBot extends ActivityHandler {
                                     channelData.streamId = streamId;
 
                                     await this.buildAndSendStreamingActivity(context, contentBuilder, channelData);
+                                    // Update the message history in the database
+                                    newMessages.push({ role: 'assistant', content: contentBuilder });
+                                    // Check if the number of turns exceeds the max turns
+                                    if (newMessages.length > this._maxTurns * 2) {
+                                        // Remove the first user message and the first assistant message
+                                        newMessages = newMessages.slice(2);
+                                    }
+                                    await updateMessageInDb(context.activity?.from?.aadObjectId || '', newMessages);
                                     break;
                                 }
 
@@ -153,8 +162,16 @@ class MyTeamsBot extends ActivityHandler {
                         }
                     } else {
                         // Generate non-streaming response
-                        const response = await openaiClient.generateResponse(removedMentionText);
+                        const response = await openaiClient.generateResponseWithContext(newMessages);
                         await context.sendActivity(response);
+                        // Save the response to the message history
+                        newMessages.push({ role: 'assistant', content: response });
+                        // Check if the number of turns exceeds the max turns
+                        if (newMessages.length > this._maxTurns * 2) {
+                            // Remove the first user message and the first assistant message
+                            newMessages = newMessages.slice(2);
+                        }
+                        await updateMessageInDb(context.activity?.from?.aadObjectId || '', newMessages);
                     }
                 } catch (error) {
                     console.error('Error generating response:', error);

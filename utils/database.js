@@ -12,6 +12,7 @@ const dbConnectionString =
 const client = new MongoClient(dbConnectionString);
 const db = client.db(dbName);
 const conversationReferenceCollection = db.collection(process.env.DB_CONVERSATIONREFERENCE_COLLECTION_NAME);
+const messsageConnection = db.collection('messages');
 
 /**
  * A function to get conversation reference from the database
@@ -95,10 +96,54 @@ async function removeConversationReferenceById(conversationId) {
     return result;
 }
 
+/**
+ * A function to get message from the database
+ * @param {string} aadObjectId - The AAD Id
+ * @return {Promise<WithId<Document> | null>} - The message
+ */
+async function getMessageByAadId(aadObjectId) {
+    const filter = {
+        'user.aadObjectId': aadObjectId,
+    };
+    await client.connect();
+    const result = await messsageConnection.findOne(filter);
+    await client.close();
+    return { messages: result?.messages || [] };
+}
+
+async function updateMessageInDb(aadObjectId, messages) {
+    const filter = {
+        'user.aadObjectId': aadObjectId,
+    };
+    const update = {
+        $set: {
+            messages: messages,
+        },
+    };
+    const options = { upsert: true };
+    await client.connect();
+    const result = await messsageConnection.updateOne(filter, update, options);
+    await client.close();
+    return result;
+}
+
+async function deleteMessageByAadId(aadObjectId) {
+    const filter = {
+        'user.aadObjectId': aadObjectId,
+    };
+    await client.connect();
+    const result = await messsageConnection.deleteOne(filter);
+    await client.close();
+    return result;
+}
+
 module.exports = {
     updateConversationReferenceInDb,
     getConversationReferenceById,
     getConversationReferenceByAadId,
     getConversationReferenceByConversationName,
     removeConversationReferenceById,
+    getMessageByAadId,
+    updateMessageInDb,
+    deleteMessageByAadId,
 };
