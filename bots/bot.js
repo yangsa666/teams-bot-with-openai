@@ -11,7 +11,18 @@ const WELCOME_TEXT = 'Welcome to this Teams bot!';
 class MyTeamsBot extends ActivityHandler {
     constructor() {
         super();
+        // The number of max turns the bot will have in the conversation
         this._maxTurns = Number(process.env.MAX_TURNS) || 10;
+        // Check if streaming is enabled in environment variables
+        this._enableStreaming = process.env.ENABLE_STREAMING === 'true';
+        // The OpenAI API key
+        this._openaiApiKey = process.env.OPENAI_API_KEY || '';
+        // The OpenAI model to use
+        this._openaiModel = process.env.OPENAI_MODEL;
+        // The Azure base URL for OpenAI API
+        this._azureBaseUrl = process.env.OPENAI_AZURE_BASE_URL;
+        // The name of the bot
+        this._botName = process.env.BOT_NAME;
         this.onMessage(async (context, next) => {
             // send bot typing indicator before replying message
             await context.sendActivities([
@@ -20,7 +31,7 @@ class MyTeamsBot extends ActivityHandler {
             ]);
 
             // Check if recipent is the Bot, do not reply if not
-            const botName = process.env.BOT_NAME;
+            const botName = this._botName;
             const recipientName = context.activity.recipient.name;
 
             // IMPORTANT: In group chat or channel, the recipient name is the bot name
@@ -79,18 +90,16 @@ class MyTeamsBot extends ActivityHandler {
 
                 // Create an instance of OpenAIClient
                 const openaiClient = new OpenAIClient({
-                    apiKey: process.env.OPENAI_API_KEY || '',
-                    model: process.env.OPENAI_MODEL,
-                    azureBaseUrl: process.env.OPENAI_AZURE_BASE_URL,
+                    apiKey: this._openaiApiKey,
+                    model: this._openaiModel,
+                    azureBaseUrl: this._azureBaseUrl,
                 });
                 const message = { role: 'user', content: removedMentionText };
                 const { messages } = await getMessageByAadId(context.activity?.from?.aadObjectId || '');
                 let newMessages = [...messages, message];
-                // Check if streaming is enabled in environment variables
-                const streamingEnabled = process.env.ENABLE_STREAMING === 'true';
-
                 try {
-                    if (streamingEnabled) {
+                    // Check if streaming is enabled
+                    if (this._enableStreaming) {
                         // Generate response with streaming
 
                         let contentBuilder = ''; // Initialize content that will be streamed back to the user

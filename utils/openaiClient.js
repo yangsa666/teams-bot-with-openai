@@ -87,8 +87,8 @@ class OpenAIClient {
                     { role: 'system', content: 'You are a helpful assistant integrated with Microsoft Teams.' },
                     ...messages,
                 ],
-                temperature: 0.7,
-                max_tokens: 4000,
+                temperature: 1,
+                // max_tokens: 4000,
                 stream: stream,
             });
 
